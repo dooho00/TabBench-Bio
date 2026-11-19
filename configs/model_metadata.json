@@ -417,7 +417,7 @@
   },
   {
     "key": "TABPFN-WIDE-5K-NE3",
-    "display": "TabPFN Wide 5k (ne3)",
+    "display": "TabPFN-Wide (3e)",
     "category": "Tabular Foundation",
     "max_features": null,
     "supported_tasks": [
