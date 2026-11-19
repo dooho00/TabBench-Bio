@@ -887,6 +887,31 @@ def build_view(
     }
 
 
+def write_citation_version(output: Path, package_version: str) -> None:
+    """Stamp the package version into the published citation files.
+
+    Builds from a source checkout also update the repository's root CITATION.cff.
+    """
+    cff = (r"^version: [^\r\n]*", f"version: {package_version}")
+    targets = [
+        (output / "CITATION.cff", cff),
+        (
+            output / "CITATION.bib",
+            (
+                r"^  note          = \{TabBench-Bio version [^}\r\n]*\}",
+                f"  note          = {{TabBench-Bio version {package_version}}}",
+            ),
+        ),
+    ]
+    repository = PACKAGE_ROOT.parents[1]
+    if (repository / "pyproject.toml").is_file():
+        targets.append((repository / "CITATION.cff", cff))
+    for path, (pattern, line) in targets:
+        text, count = re.subn(pattern, line, path.read_bytes().decode("utf-8"), flags=re.M)
+        assert count == 1, f"Expected one version line in {path}"
+        path.write_bytes(text.encode("utf-8"))
+
+
 def build_website(
     database: Path,
     output: Path,
@@ -1015,6 +1040,7 @@ def build_website(
     }
     # Template files contain no generated results or local paths.
     shutil.copytree(PACKAGE_ROOT / "web", output, dirs_exist_ok=True)
+    write_citation_version(output, version("tabbench-bio"))
     ignore_path = output / ".gitignore"
     ignore_rules = ignore_path.read_text(encoding="utf-8") if ignore_path.exists() else ""
     if "/local/" not in ignore_rules.splitlines():

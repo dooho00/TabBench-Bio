@@ -287,6 +287,8 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
     assert not (output / "skills").exists()
     for asset in (dashboard.PACKAGE_ROOT / "web").rglob("*"):
         if asset.is_file() and asset.name not in {
+            "CITATION.bib",
+            "CITATION.cff",
             "llms.txt",
             "robots.txt",
             "sitemap.xml",
@@ -368,6 +370,9 @@ def test_cli_writes_matching_reports_and_website(database, tmp_path, monkeypatch
     )
     main()
     payload = json.loads((output / "data/leaderboard.json").read_text())
+    package_version = resources.__version__
+    assert f"version: {package_version}\n" in (output / "CITATION.cff").read_text()
+    assert f"TabBench-Bio version {package_version}}}" in (output / "CITATION.bib").read_text()
     for cell in ("cap_100_n20", "cap_100_n50"):
         report = output / "local" / cell / "overall"
         assert (report / "elo.png").is_file()
@@ -507,3 +512,26 @@ def test_dashboard_display_precision_preserves_protocol_and_small_timings():
     assert not compact.keys() & source["models"]["RF"].keys()
     assert "tuning" not in compact
     assert "tuning" in source
+
+
+def test_root_citation_matches_package_version():
+    root = Path(__file__).parents[1] / "CITATION.cff"
+    assert f"\nversion: {resources.__version__}\n" in root.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("checkout", [True, False])
+def test_citation_version_stamps_site_and_repository(tmp_path, monkeypatch, checkout):
+    package, output = tmp_path / "src/tabbench_bio", tmp_path / "site"
+    output.mkdir(parents=True)
+    root = Path(__file__).parents[1] / "CITATION.cff"
+    shutil.copy(root, tmp_path)
+    if checkout:
+        (tmp_path / "pyproject.toml").touch()
+    for name in ("CITATION.cff", "CITATION.bib"):
+        shutil.copy(dashboard.PACKAGE_ROOT / "web" / name, output)
+    monkeypatch.setattr(dashboard, "PACKAGE_ROOT", package)
+    dashboard.write_citation_version(output, "9.9.9")
+    assert "\nversion: 9.9.9\n" in (output / "CITATION.cff").read_text(encoding="utf-8")
+    assert "{TabBench-Bio version 9.9.9}\n}" in (output / "CITATION.bib").read_text()
+    stamped = "\nversion: 9.9.9\n" in (tmp_path / "CITATION.cff").read_text(encoding="utf-8")
+    assert stamped == checkout
