@@ -33,7 +33,7 @@ from tabbench_bio.releases import LATEST_RESULTS_URL
 from tabbench_bio.resources import resource_root
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.social_preview import write_social_preview
-from tabbench_bio.web_metadata import write_agent_metadata, write_home_summary
+from tabbench_bio.web_metadata import write_agent_metadata, write_artifacts, write_home_summary
 
 PACKAGE_ROOT = Path(__file__).parent
 DOMAIN_ELO_IMPLEMENTATION_FILES = (
@@ -78,6 +78,7 @@ DOMAIN_ELO_OUTPUT_FIELDS = (
 
 
 CELL_RE = re.compile(r"^cap_(full|\d+)(?:_n(\d+))?$")
+DASHBOARD_SCHEMA_VERSION = 12
 
 
 def write_json(path: Path, payload: object) -> None:
@@ -128,6 +129,40 @@ def compact_dashboard_values(value, field="", models=None):
     return value
 
 
+PACKED_TABLES = ("domain_elo", "cost_grid", "regression_cost_grid", "pooled_cost_grid")
+
+
+def pack_tables(view: dict) -> dict:
+    view = dict(view)
+    for key in PACKED_TABLES:
+        rows = view.get(key)
+        if rows and all(row.keys() == rows[0].keys() for row in rows):
+            columns = list(rows[0])
+            view[key] = {
+                "columns": columns,
+                "rows": [[row[column] for column in columns] for row in rows],
+            }
+    return view
+
+
+def unpack_tables(view: dict) -> dict:
+    return {
+        key: [dict(zip(table["columns"], row, strict=True)) for row in table["rows"]]
+        if key in PACKED_TABLES and isinstance(table, dict)
+        else table
+        for key, table in view.items()
+    }
+
+
+def write_data_asset(directory: Path, name: str, payload: dict) -> str:
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()[:16]
+    filename = f"{name}-{digest}.json"
+    write_json(directory / filename, payload)
+    return f"data/{filename}"
+
+
 def write_dashboard_payload(path: Path, dashboard: dict) -> None:
     """Publish primary data plus content-addressed sensitivity files."""
     payload = compact_dashboard_values(
@@ -137,20 +172,87 @@ def write_dashboard_payload(path: Path, dashboard: dict) -> None:
             if key not in dashboard["analysis_views"]["strict"]
         }
     )
+    payload["schema_version"] = DASHBOARD_SCHEMA_VERSION
     payload["analysis_view_files"] = {}
     for name in ("adaptive", "conditional"):
-        view = payload["analysis_views"].pop(name)
-        digest = hashlib.sha256(
-            json.dumps(view, sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest()[:16]
-        filename = f"analysis-{name}-{digest}.json"
-        write_json(path.parent / filename, view)
-        payload["analysis_view_files"][name] = f"data/{filename}"
+        view = pack_tables(payload["analysis_views"].pop(name))
+        payload["analysis_view_files"][name] = write_data_asset(
+            path.parent, f"analysis-{name}", view
+        )
+    strict = payload["analysis_views"]["strict"]
+    payload["analysis_views"]["strict"] = pack_tables(strict)
     write_json(path, payload)
-    active = {Path(relative).name for relative in payload["analysis_view_files"].values()}
-    for previous in path.parent.glob("analysis-*.json"):
+
+    home = {key: payload[key] for key in ("meta", "progress", "models", "analysis_view_files")}
+    home["datasets"] = [
+        {key: row[key] for key in ("task", "modality")} for row in payload["datasets"]
+    ]
+    home["cv_folds"] = max(
+        (model["folds"] for row in payload["datasets"] for model in row["performance"]["models"]),
+        default=0,
+    )
+    home["analysis_views"] = {"strict": {"reference": strict["reference"]}}
+    home["strict_chart_file"] = write_data_asset(
+        path.parent,
+        "home-charts",
+        pack_tables(
+            {
+                key: strict[key]
+                for key in (
+                    "cell_options",
+                    "reference",
+                    "domains",
+                    "elo_metrics",
+                    *PACKED_TABLES,
+                    "rank_correlations",
+                )
+            }
+        ),
+    )
+    write_json(path.parent / "home.json", home)
+
+    model_pages = {
+        "meta": payload["meta"],
+        "models": payload["models"],
+        "domains": strict["domains"],
+        "cell_options": strict["cell_options"],
+        "reference": strict["reference"],
+        "failure_domains": list(
+            dict.fromkeys(row["modality"] for row in payload["failure_summary"])
+        ),
+        "model_files": {},
+    }
+    by_model = {
+        model: {"domain_elo": [], "model_card_coverage": [], "failure_summary": []}
+        for model in payload["models"]
+    }
+    for field, rows in (
+        ("domain_elo", (row for row in strict["domain_elo"] if row["metric"] == "f1_macro")),
+        ("model_card_coverage", strict["model_card_coverage"]),
+        ("failure_summary", payload["failure_summary"]),
+    ):
+        for row in rows:
+            by_model[row["model_id"]][field].append(row)
+    for model, detail in by_model.items():
+        model_pages["model_files"][model] = write_data_asset(
+            path.parent, "model-detail", pack_tables(detail)
+        )
+    write_json(path.parent / "model-pages.json", model_pages)
+
+    active = {
+        Path(relative).name
+        for relative in (
+            *payload["analysis_view_files"].values(),
+            home["strict_chart_file"],
+            *model_pages["model_files"].values(),
+        )
+    }
+    for previous in path.parent.glob("*.json"):
         if (
-            re.fullmatch(r"analysis-(adaptive|conditional)-[0-9a-f]{16}\.json", previous.name)
+            re.fullmatch(
+                r"(analysis-adaptive|analysis-conditional|home-charts|model-detail)-[0-9a-f]{16}\.json",
+                previous.name,
+            )
             and previous.name not in active
         ):
             previous.unlink()
@@ -950,10 +1052,10 @@ def build_website(
     if dashboard_path.is_file():
         previous = json.loads(dashboard_path.read_text(encoding="utf-8"))
         if "analysis_views" in previous:
-            prior = tuple(previous["analysis_views"].values())
+            prior = tuple(unpack_tables(view) for view in previous["analysis_views"].values())
             if "analysis_view_files" in previous:
                 prior += tuple(
-                    json.loads((output / relative).read_text(encoding="utf-8"))
+                    unpack_tables(json.loads((output / relative).read_text(encoding="utf-8")))
                     for relative in previous["analysis_view_files"].values()
                 )
     views = {}
@@ -981,7 +1083,7 @@ def build_website(
         frames["strict"]["regression"],
     )
     dashboard = {
-        "schema_version": 11,
+        "schema_version": DASHBOARD_SCHEMA_VERSION,
         "meta": {
             "title": "TabBench Bio",
             "tagline": "A living benchmark for tabular learning in biomedical HDLSS regimes.",
@@ -1048,6 +1150,7 @@ def build_website(
     entry = write_leaderboard_export(dashboard, output / "data" / "leaderboard.json")
     dashboard["raw_exports"].insert(0, entry)
     write_dashboard_payload(dashboard_path, dashboard)
+    write_artifacts(output, dashboard)
     write_dataset_explorer(output, dashboard, summary, frames["strict"]["regression"])
     write_home_summary(output, dashboard)
     write_agent_metadata(output, dashboard)

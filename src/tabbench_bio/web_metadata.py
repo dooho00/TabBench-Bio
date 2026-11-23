@@ -3,13 +3,57 @@
 import json
 import re
 from collections import Counter
+from html import escape as escape_html
 from pathlib import Path
 from xml.sax.saxutils import escape
 
+from tabbench_bio.releases import LATEST_RESULTS_URL
 from tabbench_bio.resources import resource_root
 from tabbench_bio.static_pages import detail_url, model_label, write_static_pages
 
 SKILL_NAME = "biomedical-tabular-model-selection"
+
+
+def write_artifacts(site_dir: Path, dashboard: dict) -> None:
+    cards = []
+    releases_url = dashboard["meta"]["github_url"].rstrip("/") + "/releases"
+    for file in dashboard["raw_exports"]:
+        name = escape_html(file["name"])
+        path = file["path"] or ""
+        amount = file["bytes"]
+        unit = "B"
+        for larger_unit in ("KB", "MB", "GB"):
+            if amount < 1000:
+                break
+            amount /= 1000
+            unit = larger_unit
+        size = f"{amount:.0f}" if unit == "B" else f"{amount:.1f}"
+        detail = f"{file['records']:,} records · {size} {unit}"
+        release = path.rstrip("/") == releases_url
+        download = "" if release else " download"
+        arrow = "↗" if release else "↓"
+        if file["format"] == "sqlite3":
+            path = LATEST_RESULTS_URL
+            detail = "Download from the latest GitHub release"
+            download = ""
+        elif file.get("available") is False and not release:
+            cards.append(
+                f'<div class="data-file data-file-pending"><span><strong>{name}</strong>'
+                f'<span>{detail} · release upload pending</span></span> <b aria-hidden="true">…</b></div>'
+            )
+            continue
+        cards.append(
+            f'<a class="data-file" href="{escape_html(path)}"{download}><span><strong>{name}</strong>'
+            f'<span>{detail}</span></span> <b aria-hidden="true">{arrow}</b></a>'
+        )
+    path = site_dir / "artifacts.html"
+    html = path.read_text(encoding="utf-8")
+    opening = '<div id="raw-files" class="data-grid" aria-live="polite">'
+    cards_html = "\n          ".join(cards)
+    path.write_text(
+        html.replace(f"{opening}</div>", f"{opening}\n          {cards_html}\n        </div>"),
+        encoding="utf-8",
+    )
 
 
 def build_llms_text(dashboard: dict[str, object], project_url: str) -> str:
@@ -115,7 +159,7 @@ Download the Markdown file directly; no repository clone is needed.
 
 ## Machine-readable data
 
-- [Dashboard JSON]({project_url}/data/dashboard.json): modality-specific rankings, costs, coverage, analysis views and model flags. Display measurements use six significant digits; model metadata (including tuning grids) is stored once in models, keyed by model_id. Elo ratings, counts and protocol parameters remain exact.
+- [Dashboard JSON]({project_url}/data/dashboard.json): modality-specific rankings, costs, coverage, analysis views and model flags. In schema 12, the largest tables use `columns` and `rows` arrays; pair each column name with the value at the same index in a row. Display measurements use six significant digits; model metadata (including tuning grids) is stored once in models, keyed by model_id. Elo ratings, counts and protocol parameters remain exact.
 - [Leaderboard JSON]({project_url}/data/leaderboard.json): aggregate rankings.
 - [Dataset index JSON]({project_url}/data/datasets/index.json): task-specific metrics and links to per-dataset scores.
 
