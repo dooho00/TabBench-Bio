@@ -100,12 +100,6 @@ const PLOT_COLORS = {
 function byId(id) { return document.getElementById(id); }
 function number(value) { return new Intl.NumberFormat("en-US").format(value); }
 function percent(value) { return `${(100 * value).toFixed(1)}%`; }
-function bytes(value) {
-  const units = ["B", "KB", "MB", "GB"];
-  let amount = Number(value), unit = 0;
-  while (amount >= 1000 && unit < units.length - 1) { amount /= 1000; unit += 1; }
-  return `${amount.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
-}
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -403,10 +397,7 @@ function initializeMeta() {
   byId("footer-affiliation").firstChild.textContent = `${meta.affiliation} `;
   if (!byId("podium-list").children.length) renderReferencePodium();
 
-  const recordedFoldCounts = DATA.datasets.flatMap((dataset) =>
-    dataset.performance.models.map((model) => model.folds)
-  );
-  const cvFolds = Math.max(...recordedFoldCounts);
+  const cvFolds = DATA.cv_folds;
   const evaluationPointsPerModel = meta.evaluation_points_per_model
     ?? cvFolds * progress.cells.length * DATA.datasets.length;
   const configuredModelCount = meta.configured_model_count ?? Math.round(
@@ -620,15 +611,19 @@ function renderModelCard() {
   byId("model-card-summary").textContent = `Relative to ${comparator.display} at ${capLabel(featureCap)} features.`;
 }
 
+function modelCardOptions(requestedModel) {
+  return Object.keys(DATA.models)
+    .filter(modelId => modelId === requestedModel || (!EXCLUDED.has(modelId) && (SHOW_ALL_MODELS || modelId !== "AUTOGLUON")))
+    .sort((left, right) => DATA.models[left].display.localeCompare(DATA.models[right].display));
+}
+
 function initializeModelCard() {
   const modelSelect = byId("model-card-model");
   const capSelect = byId("model-card-cap");
   const comparatorSelect = byId("model-card-comparator");
   const params = new URLSearchParams(location.search);
   const requestedModel = document.body.dataset.entityId || params.get("model");
-  const modelIds = Object.keys(DATA.models)
-    .filter((modelId) => modelId === requestedModel || (!EXCLUDED.has(modelId) && (SHOW_ALL_MODELS || modelId !== "AUTOGLUON")))
-    .sort((left, right) => DATA.models[left].display.localeCompare(DATA.models[right].display));
+  const modelIds = modelCardOptions(requestedModel);
   const defaultModel = modelIds.includes(requestedModel) ? requestedModel : DATA.reference
     .filter((row) => modelIds.includes(row.model_id))
     .sort((left, right) => right.Elo - left.Elo)[0].model_id;
@@ -643,10 +638,14 @@ function initializeModelCard() {
     const label = value === -1000 ? "≤−1,000" : value === 1000 ? "≥+1,000" : value > 0 ? `+${value}` : String(value).replace("-", "−");
     return `<span style="left:${50 + 50 * modelCardScale(value)}%">${label}</span>`;
   }).join("");
-  comparatorSelect.onchange = renderModelCard;
+  const renderComparison = async () => {
+    const comparator = comparatorSelect.value;
+    await loadModelDetail(comparator);
+    if (comparatorSelect.value === comparator) renderModelCard();
+  };
+  comparatorSelect.onchange = capSelect.onchange = () => renderComparison().catch(showLoadError);
   modelSelect.onchange = renderModelCard;
-  capSelect.onchange = renderModelCard;
-  renderModelCard();
+  return renderComparison();
 }
 
 function renderFamilyLegend(rows, hasTuned = false) {
@@ -1409,7 +1408,7 @@ function renderComposition() {
 }
 
 function initializeFailures() {
-  const domains = ["all", ...new Set(DATA.failure_summary.map(row => row.modality))];
+  const domains = ["all", ...DATA.failure_domains];
   setOptions(byId("failure-domain"), domains, "all", domainLabel);
   byId("failure-domain").addEventListener("change", renderFailures);
   window.addEventListener("resize", renderFailures);
@@ -1460,34 +1459,6 @@ function renderFailures() {
   }), PLOT_CONFIG);
 }
 
-function renderRawFiles() {
-  byId("raw-files").innerHTML = DATA.raw_exports.map((file) => {
-    if (file.format === "sqlite3") {
-      return `
-        <a class="data-file" href="https://github.com/not-a-feature/TabBench-Bio/releases/latest/download/results.sqlite">
-          <span><strong>${escapeHtml(file.name)}</strong><span>Download from the latest GitHub release</span></span>
-          <b aria-hidden="true">↓</b>
-        </a>`;
-    }
-    const detail = `${number(file.records)} records · ${bytes(file.bytes)}`;
-    const releasesUrl = `${DATA.meta.github_url.replace(/\/$/, "")}/releases/`;
-    const path = file.path || "";
-    const isReleasesPage = path.replace(/\/$/, "") === releasesUrl.replace(/\/$/, "");
-    if (file.available === false && !isReleasesPage) {
-      return `
-        <div class="data-file data-file-pending">
-          <span><strong>${escapeHtml(file.name)}</strong><span>${detail} · release upload pending</span></span>
-          <b aria-hidden="true">…</b>
-        </div>`;
-    }
-    return `
-      <a class="data-file" href="${escapeHtml(path)}"${isReleasesPage ? "" : " download"}>
-        <span><strong>${escapeHtml(file.name)}</strong><span>${detail}</span></span>
-        <b aria-hidden="true">${isReleasesPage ? "↗" : "↓"}</b>
-      </a>`;
-  }).join("");
-}
-
 function renderCharts(force = false) {
   return Promise.all([
     renderElo(), renderBudget("perf", force), renderBudget("feat", force),
@@ -1510,14 +1481,58 @@ function restoreModelMetadata(value) {
   if (value.model_id && DATA.models[value.model_id]) Object.assign(value, DATA.models[value.model_id]);
 }
 
+async function fetchData(path, options) {
+  const response = await fetch(siteUrl(path), options);
+  if (!response.ok) throw new Error(`Could not load ${path} (HTTP ${response.status})`);
+  return response.json();
+}
+
+async function fetchTables(path) {
+  const data = await fetchData(path);
+  for (const [key, table] of Object.entries(data)) {
+    if (Array.isArray(table?.columns) && Array.isArray(table.rows)) {
+      data[key] = table.rows.map(row => Object.fromEntries(
+        table.columns.map((column, index) => [column, row[index]])
+      ));
+    }
+  }
+  restoreModelMetadata(data);
+  return data;
+}
+
+const MODEL_LOADS = new Map();
+
+function loadModelDetail(model) {
+  const path = DATA.model_files?.[model];
+  if (!path) return Promise.resolve();
+  if (!MODEL_LOADS.has(model)) {
+    const pending = fetchTables(path).then(detail => {
+      for (const [key, rows] of Object.entries(detail)) DATA[key].push(...rows);
+    });
+    MODEL_LOADS.set(model, pending);
+    pending.catch(() => MODEL_LOADS.delete(model));
+  }
+  return MODEL_LOADS.get(model);
+}
+
+function nearViewport(element) {
+  if (!window.IntersectionObserver) return Promise.resolve();
+  return new Promise(resolve => {
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        observer.disconnect();
+        resolve();
+      }
+    }, { rootMargin: "400px" });
+    observer.observe(element);
+  });
+}
+
 async function loadAnalysisView(view) {
   if (DATA.analysis_views[view]) return DATA.analysis_views[view];
   if (!ANALYSIS_LOADS.has(view)) {
     const pending = (async () => {
-      const response = await fetch(siteUrl(DATA.analysis_view_files[view]));
-      if (!response.ok) throw new Error(`Could not load ${view} results (HTTP ${response.status})`);
-      const selected = await response.json();
-      restoreModelMetadata(selected);
+      const selected = await fetchTables(DATA.analysis_view_files[view]);
       DATA.analysis_views[view] = selected;
       return selected;
     })();
@@ -1613,7 +1628,7 @@ function initializeModelVisibility() {
     if (page === "home") {
       renderReferencePodium();
       renderCharts();
-    } else if (page === "model") initializeModelCard();
+    } else if (page === "model") initializeModelCard().catch(showLoadError);
     else if (page === "dataset") {
       renderDatasetCharts();
     }
@@ -1683,15 +1698,18 @@ async function main() {
     return;
   }
   initializeTheme();
-  if (page === "changelog" || page === "imprint" || page === "citation") return;
+  if (["changelog", "imprint", "citation", "artifacts"].includes(page)) return;
   if (page === "models") {
     initializeModelOverview();
     return;
   }
-  const charting = page === "home" ? loadExternalScript("assets/plotly-cartesian.min.js", "Plotly") : Promise.resolve();
-  const response = await fetch(siteUrl(page === "datasets" || page === "dataset" ? "data/datasets/index.json" : "data/dashboard.json"), { cache: "no-cache" });
-  if (!response.ok) throw new Error(`Could not load benchmark data (HTTP ${response.status})`);
-  DATA = await response.json();
+  const manifests = {
+    home: "data/home.json",
+    model: "data/model-pages.json",
+    dataset: "data/datasets/index.json",
+    datasets: "data/datasets/index.json",
+  };
+  DATA = await fetchData(manifests[page], { cache: "no-cache" });
   restoreModelMetadata(DATA);
   EXCLUDED = new Set(SHOW_ALL_MODELS ? [] : DATA.meta.plot_excluded_models);
   const linkedModel = document.body.dataset.entityId || new URLSearchParams(location.search).get("model");
@@ -1699,13 +1717,17 @@ async function main() {
     SHOW_ALL_MODELS = true;
     EXCLUDED = new Set();
   }
-  initializeModelVisibility();
   if (page === "home") {
     initializeCodeCopy();
-    initializeAdvancedOptions();
-    await charting;
-    Object.assign(DATA, DATA.analysis_views.strict);
     initializeMeta();
+    await nearViewport(byId("explore"));
+    [DATA.analysis_views.strict] = await Promise.all([
+      fetchTables(DATA.strict_chart_file),
+      loadExternalScript("assets/plotly-cartesian.min.js", "Plotly"),
+    ]);
+    Object.assign(DATA, DATA.analysis_views.strict);
+    initializeAdvancedOptions();
+    initializeModelVisibility();
     initializeElo();
     initializeBudget("perf");
     initializeBudget("feat");
@@ -1743,16 +1765,24 @@ async function main() {
       });
     });
   } else if (page === "model") {
-    Object.assign(DATA, DATA.analysis_views.strict);
-    await loadExternalScript("assets/plotly-cartesian.min.js", "Plotly");
-    initializeModelCard();
+    Object.assign(DATA, { domain_elo: [], model_card_coverage: [], failure_summary: [] });
+    await nearViewport(byId("model-card-model"));
+    const modelIds = modelCardOptions(linkedModel);
+    const requestedComparator = legacyParams.get("compare") || "RF";
+    const comparator = modelIds.includes(requestedComparator) ? requestedComparator : modelIds[0];
+    await Promise.all([
+      loadModelDetail(linkedModel),
+      loadModelDetail(comparator),
+      loadExternalScript("assets/plotly-cartesian.min.js", "Plotly"),
+    ]);
+    initializeModelVisibility();
+    await initializeModelCard();
     initializeFailures();
   } else if (page === "datasets") {
     initializeDatasetExplorer();
   } else if (page === "dataset") {
+    initializeModelVisibility();
     await initializeDatasetDetail();
-  } else if (page === "artifacts") {
-    renderRawFiles();
   } else {
     throw new Error(`Unknown page: ${page}`);
   }

@@ -190,11 +190,36 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
     output = tmp_path / "site"
     payload, strict = dashboard.build_website(database, output, n_boot=8)
     parsed = json.loads((output / "data/dashboard.json").read_text())
-    assert parsed["schema_version"] == 11
+    assert parsed["schema_version"] == 12
     assert set(parsed["analysis_views"]) == {"strict"}
     assert set(parsed["analysis_view_files"]) == {"adaptive", "conditional"}
     for name, relative in parsed["analysis_view_files"].items():
         parsed["analysis_views"][name] = json.loads((output / relative).read_text())
+    assert set(parsed["analysis_views"]["strict"]["domain_elo"]) == {"columns", "rows"}
+    parsed["analysis_views"] = {
+        name: dashboard.unpack_tables(view) for name, view in parsed["analysis_views"].items()
+    }
+    home = json.loads((output / "data/home.json").read_text())
+    assert set(home["analysis_views"]["strict"]) == {"reference"}
+    charts = dashboard.unpack_tables(json.loads((output / home["strict_chart_file"]).read_text()))
+    assert charts["domain_elo"] == parsed["analysis_views"]["strict"]["domain_elo"]
+    assert charts["pooled_cost_grid"] == parsed["analysis_views"]["strict"]["pooled_cost_grid"]
+    models = json.loads((output / "data/model-pages.json").read_text())
+    model = dashboard.unpack_tables(json.loads((output / models["model_files"]["RF"]).read_text()))
+    assert model["domain_elo"] == [
+        row
+        for row in charts["domain_elo"]
+        if row["model_id"] == "RF" and row["metric"] == "f1_macro"
+    ]
+    assert model["failure_summary"] == [
+        row for row in parsed["failure_summary"] if row["model_id"] == "RF"
+    ]
+    artifacts = (output / "artifacts.html").read_text(encoding="utf-8")
+    assert 'href="data/leaderboard.json" download' in artifacts
+    assert (
+        'href="https://github.com/not-a-feature/TabBench-Bio/releases/latest/download/results.sqlite"'
+        in artifacts
+    )
     assert not set(parsed).intersection(parsed["analysis_views"]["strict"])
     for name, view in parsed["analysis_views"].items():
         assert view == json.loads(
@@ -293,6 +318,7 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
             "robots.txt",
             "sitemap.xml",
             "index.html",
+            "artifacts.html",
             "datasets.html",
             "models.html",
             "og.png",
