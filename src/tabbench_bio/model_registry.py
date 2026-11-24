@@ -88,6 +88,11 @@ EXECUTION_REGISTRY = {
     "LIMIX-2": ExecutionSpec(
         device="gpu", environment="limix2", adapter="tabbench_bio.models.limix_2:LimiX2Model"
     ),
+    "LATTICE": ExecutionSpec(
+        device="gpu",
+        environment="lattice",
+        adapter="tabbench_bio.models.lattice:LatticeModel",
+    ),
     "REALTABPFN-V2": ExecutionSpec(device="gpu"),
     "REALTABPFN-V2.5": ExecutionSpec(device="gpu"),
     "TABPFN-V3": ExecutionSpec(

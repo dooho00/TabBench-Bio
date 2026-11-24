@@ -1,0 +1,4 @@
+-r ../requirements-autogluon-fork.txt
+-e .[autogluon]
+lattice @ git+https://github.com/hachure-ai/Lattice.git@29876ffdba436b4e3efb85491d232735ecbb9ffa
+torch==2.13.*
