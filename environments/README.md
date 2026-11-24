@@ -18,6 +18,7 @@ live in `environments/<profile>.txt`, and its installed Python environment lives
 | `geneicl` | GeneICL 1.0.0, with its bundled seed-0 checkpoint |
 | `lightpfn` | LightPFN 1.5.1, with its pinned classification and regression checkpoints |
 | `limix2` | LimiX2, with its pinned source revision and PyTorch version |
+| `lattice` | Lattice, with pinned source and checkpoint revisions |
 | `kumo` | Kumo Tabular Medium and Large, with pinned SDM source and checkpoint revisions |
 | `seldon` | Seldon and Seldon-Mini, with neuralk-oss 0.3.0 and pinned checkpoint revisions |
 | `ftfm` | FTFM-1, with pinned upstream source and checkpoint revisions |
@@ -100,6 +101,12 @@ Use `--full-grid` for all cells, or `--device cpu` for explicit CPU execution.
 and regression with the released defaults and pinned weights. Install the `lightpfn`
 profile, then run `tabbench-bio LIGHTPFN`; add `--device cpu` to use the CPU.
 The regular feature limit is 500, and classification supports up to 10 classes.
+
+`LATTICE` uses the released [Lattice](https://huggingface.co/hachure-ai/Lattice) checkpoints
+for classification and regression with the default eight-member ensemble. Each member
+uses up to 500 processed columns for classification and 1,000 for regression.
+The code is Apache-2.0 and the weights are CC BY-NC 4.0. Install the `lattice`
+profile, then run `tabbench-bio LATTICE`. Add `--device cpu` for CPU inference.
 
 `TABOMICS` runs [TabOmics v2.5](https://github.com/lbotecur/tabomics) for
 classification with its released single-estimator defaults and no feature cap.

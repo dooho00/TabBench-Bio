@@ -342,6 +342,21 @@
     "description": "LimiX-2 is pretrained on synthetic tables generated from causal models. It learns relationships between features and targets through masked prediction, then uses labelled rows as context to predict classes or numerical values in a new table."
   },
   {
+    "key": "LATTICE",
+    "display": "Lattice",
+    "category": "Tabular Foundation",
+    "max_features": null,
+    "supported_tasks": [
+      "classification",
+      "regression"
+    ],
+    "max_classes": null,
+    "hidden": false,
+    "training_data_overlap": false,
+    "source_url": "https://huggingface.co/hachure-ai/Lattice",
+    "description": "Lattice is a tabular foundation model pretrained on synthetic tables. It uses labelled training rows as context for classification and regression without updating its weights. The released eight-member ensemble uses up to 500 processed columns per member for classification and 1,000 for regression."
+  },
+  {
     "key": "REALTABPFN-V2",
     "display": "RealTabPFN v2",
     "category": "Tabular Foundation",
