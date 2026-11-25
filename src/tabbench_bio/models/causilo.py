@@ -1,10 +1,9 @@
-"""AutoGluon adapter for Causilo's released classification and regression models."""
+"""AutoGluon adapters for Causilo 1.0 and 1.5."""
 
 import numpy as np
 import torch
 from autogluon.core.models import AbstractModel
 from causilo import CausiloClassifier, CausiloRegressor
-from causilo.checkpoints import RELEASE_COMMIT
 
 CHECKPOINT_REVISION = "94f2bd91db0737d4da59f347910662905ecb5a09"
 
@@ -13,10 +12,16 @@ class CausiloModel(AbstractModel):
     ag_key = "CAUSILO"
     ag_name = "Causilo"
 
-    def _fit(self, X, y, num_cpus=1, num_gpus=0, **kwargs):
+    def _checkpoint_options(self):
+        from causilo.checkpoints import RELEASE_COMMIT
+
         assert RELEASE_COMMIT == CHECKPOINT_REVISION, (
             "Unexpected Causilo checkpoint revision; reinstall the causilo profile."
         )
+        return {}
+
+    def _fit(self, X, y, num_cpus=1, num_gpus=0, **kwargs):
+        checkpoint_options = self._checkpoint_options()
         assert num_cpus >= 1
         if num_gpus and not torch.cuda.is_available():
             raise RuntimeError("Causilo requested a GPU, but CUDA is unavailable.")
@@ -28,6 +33,7 @@ class CausiloModel(AbstractModel):
             random_state=42,
             use_kv_cache=False,
             retain_preprocessing=True,
+            **checkpoint_options,
         )
         self.model.fit(self.preprocess(X), y)
         if self.problem_type != "regression":
@@ -54,3 +60,11 @@ class CausiloModel(AbstractModel):
     @classmethod
     def supported_problem_types(cls):
         return ["binary", "multiclass", "regression"]
+
+
+class Causilo15Model(CausiloModel):
+    ag_key = "CAUSILO-1.5"
+    ag_name = "Causilo15"
+
+    def _checkpoint_options(self):
+        return {"model_version": "1.5", "max_context": None}

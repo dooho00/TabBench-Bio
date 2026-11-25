@@ -63,6 +63,9 @@ EXECUTION_REGISTRY = {
     "CAUSILO": ExecutionSpec(
         device="gpu", environment="causilo", adapter="tabbench_bio.models.causilo:CausiloModel"
     ),
+    "CAUSILO-1.5": ExecutionSpec(
+        device="gpu", environment="causilo15", adapter="tabbench_bio.models.causilo:Causilo15Model"
+    ),
     "GENEICL": ExecutionSpec(
         device="gpu", environment="geneicl", adapter="tabbench_bio.models.geneicl:GeneICLModel"
     ),
