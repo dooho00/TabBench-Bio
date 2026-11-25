@@ -179,6 +179,7 @@ Kreuer, J.; Ouaari, S.; Hellmig, J.; Braitinger, J.; Pfeifer, N. (2026). TabBenc
 
 ## Optional
 
+- [Blog]({project_url}/blog/): benchmark summaries, methodology notes, and model timelines
 - [Changelog]({project_url}/changelog.html): notable benchmark and website updates
 - [GitHub repository](https://github.com/not-a-feature/TabBench-Bio): canonical source code and issue tracker
 """
@@ -192,6 +193,15 @@ def sitemap_urls(site_dir: Path, project_url: str) -> list[str]:
         if path.name not in {"dataset.html", "model.html", "datasets.html", "models.html"}
     ]
     paths += ["llms.txt", "skill.md", "CITATION.cff", "CITATION.bib"]
+    blog_dir = site_dir / "blog"
+    if blog_dir.is_dir():
+        if (blog_dir / "index.html").is_file():
+            paths.append("blog/")
+        for entry in sorted(blog_dir.iterdir()):
+            if entry.is_dir() and (entry / "index.html").is_file():
+                paths.append(f"blog/{entry.name}/")
+            elif entry.is_file() and entry.suffix == ".html" and entry.name != "index.html":
+                paths.append(f"blog/{entry.name}")
     for kind in ("models", "datasets"):
         directory = site_dir / kind
         paths += [kind + "/"]

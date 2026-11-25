@@ -1,6 +1,7 @@
 """Search metadata covers real entity pages, consistently across sitemap formats."""
 
 import json
+import re
 import shutil
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
@@ -16,6 +17,7 @@ def test_registry_links_and_sitemaps_are_consistent(tmp_path):
     source = Path(web_metadata.__file__).parent / "web"
     for name in ("models.html", "model.html", "dataset.html", "datasets.html", "index.html"):
         shutil.copyfile(source / name, tmp_path / name)
+    shutil.copytree(source / "blog", tmp_path / "blog")
     data = tmp_path / "data/datasets"
     data.mkdir(parents=True)
     dataset = {
@@ -149,6 +151,8 @@ def test_registry_links_and_sitemaps_are_consistent(tmp_path):
         folder_index = (tmp_path / kind / "index.html").read_text(encoding="utf-8")
         assert f'href="{domain}/{kind}/"' in folder_index
         assert f"{domain}/{kind}/" in text_urls
+    for blog_path in ("blog/", "blog/why-tabbench-bio/", "blog/model-timeline/"):
+        assert f"{domain}/{blog_path}" in text_urls
 
     class Links(HTMLParser):
         def handle_starttag(self, tag, attrs):
@@ -156,7 +160,11 @@ def test_registry_links_and_sitemaps_are_consistent(tmp_path):
                 if key in {"href", "src"}:
                     assert value.startswith(("/", "https:", "#")), value
 
-    for path in [*tmp_path.glob("models/**/index.html"), *tmp_path.glob("datasets/**/index.html")]:
+    for path in [
+        *tmp_path.glob("models/**/index.html"),
+        *tmp_path.glob("datasets/**/index.html"),
+        *tmp_path.glob("blog/**/index.html"),
+    ]:
         Links().feed(path.read_text(encoding="utf-8"))
 
     before = (tmp_path / "models/rf/index.html").read_bytes()
@@ -179,3 +187,22 @@ def test_entity_url_collisions_fail_instead_of_overwriting(tmp_path):
     (data / "index.json").write_text('{"datasets": []}')
     with pytest.raises(ValueError, match="Duplicate model URL slugs"):
         write_static_pages(tmp_path, {"models": {"A/B": {}, "A-B": {}}}, "https://example.org")
+
+
+def test_web_templates_header_navigation_and_blog():
+    web_root = Path(web_metadata.__file__).parent / "web"
+    templates = [
+        *sorted(web_root.glob("*.html")),
+        *sorted(web_root.glob("blog/**/*.html")),
+    ]
+    assert len(templates) == 12
+    for template in templates:
+        html = template.read_text(encoding="utf-8")
+        nav_match = re.search(r'<nav aria-label="Primary navigation">(.*?)</nav>', html, re.S)
+        assert nav_match, template
+        nav = nav_match[1]
+        assert ">Explore<" not in nav, template
+        assert ">GitHub<" not in nav, template
+        assert 'href="/blog/"' in nav, template
+        assert 'class="header-actions"' in html, template
+        assert html.index('id="nav-github"') < html.index('id="theme-toggle"'), template

@@ -380,7 +380,7 @@ function renderReferencePodium() {
 
 function initializeMeta() {
   const { meta, progress } = DATA;
-  [byId("github-link"), byId("nav-github")].forEach((link) => {
+  [byId("github-link"), byId("nav-github")].filter(Boolean).forEach((link) => {
     link.href = meta.github_url;
     link.target = "_blank";
     link.rel = "noreferrer";
@@ -1698,7 +1698,7 @@ async function main() {
     return;
   }
   initializeTheme();
-  if (["changelog", "imprint", "citation", "artifacts"].includes(page)) return;
+  if (["changelog", "imprint", "citation", "artifacts", "blog"].includes(page)) return;
   if (page === "models") {
     initializeModelOverview();
     return;

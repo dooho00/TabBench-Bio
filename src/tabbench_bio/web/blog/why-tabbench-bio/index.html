@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description"
+    content="Summary of the TabBench-Bio paper: why evaluating models across varying feature caps and training-sample sizes matters for biomedical tabular data.">
+  <meta name="theme-color" content="#f4f5f1">
+  <link rel="canonical" href="https://tabbench-bio.eu/blog/why-tabbench-bio/">
+  <link rel="alternate" type="text/plain" href="https://tabbench-bio.eu/llms.txt"
+    title="TabBench-Bio guide for AI agents">
+  <title>Why High-Dimensional Biomedical Tables Need a Feature-by-Sample Benchmark · TabBench-Bio</title>
+  <link rel="icon" href="/assets/favicon.svg?v=20260821-4" type="image/svg+xml">
+  <link rel="preload" href="/assets/fonts/AtkinsonHyperlegibleNext-Regular.woff2" as="font" type="font/woff2"
+    crossorigin>
+  <link rel="preload" href="/assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/style.min.css?v=20261125-center">
+</head>
+
+<body data-page="blog">
+  <header class="site-header">
+    <a class="wordmark" href="/index.html" aria-label="TabBench-Bio home"><span class="wordmark-mark"
+        aria-hidden="true"></span><span>TabBench-<strong>Bio</strong></span></a>
+    <nav aria-label="Primary navigation"><a href="/datasets/">Datasets</a><a href="/models/">Models</a><a
+        href="/artifacts.html">Artifacts</a><a href="/changelog.html">Changelog</a><a href="/blog/"
+        aria-current="page">Blog</a></nav>
+    <div class="header-actions">
+      <a id="nav-github" class="header-icon-button" href="https://github.com/not-a-feature/TabBench-Bio"
+        target="_blank" rel="noreferrer" aria-label="TabBench-Bio on GitHub" title="GitHub repository"><svg
+          viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2Z"></path>
+        </svg></a>
+      <button id="theme-toggle" class="theme-button" type="button" aria-label="Switch to dark theme" aria-pressed="false"
+        title="Switch to dark theme"><span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span><span
+          class="theme-icon theme-icon-moon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img">
+            <path d="M20.7 15.1A8.5 8.5 0 0 1 8.9 3.3 8.5 8.5 0 1 0 20.7 15.1Z"></path>
+          </svg></span></button>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="page-hero blog-post-hero shell">
+      <a class="blog-back" href="/blog/">← All blog posts</a>
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Paper Summary</p>
+          <h1>Why High-Dimensional Biomedical Tables Need a Feature-by-Sample Benchmark</h1>
+          <div class="blog-meta">
+            <time datetime="2026-11-10">10 November 2026</time>
+            <span>Paper: <a href="https://arxiv.org/abs/2609.07441" target="_blank" rel="noreferrer">arXiv:2609.07441 ↗</a></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-muted">
+      <article class="shell blog-article">
+        <p>Most tabular ML benchmarks test models on tables that have thousands of rows and a few dozen columns. Molecular and biomedical data usually runs in the opposite direction. A gene-expression study, a DNA methylation cohort, or a microbiome survey might expose 10,000 to 50,000 measured variables for 80 patients. In that high-dimensional, low-sample-size (HDLSS) regime, the ratio of features to samples changes both what statistical estimators can learn and whether a model fits into GPU memory within a realistic timeout.</p>
+
+        <p>That mismatch motivated <a href="https://arxiv.org/abs/2609.07441" target="_blank" rel="noreferrer">TabBench-Bio</a>. Instead of reporting one score per dataset at whatever size the original authors happened to publish, the benchmark evaluates every model across a controlled two-dimensional grid of feature counts and training-sample budgets on shared cross-validation splits.</p>
+
+        <div class="blog-callout">
+          <p><strong>Paper vs. live leaderboard:</strong> The submitted paper (Kreuer et al., 2026) analyzed a fixed snapshot of 43 datasets and 21 models (19 peer models plus Constant and AutoGluon). Since publication, the living benchmark has grown to <a href="/datasets/">46 biomedical datasets</a> and <a href="/models/">39 evaluated model configurations</a>. Numbers attributed to the paper below refer to that 43-dataset snapshot.</p>
+        </div>
+
+        <h2>Why general tabular benchmarks do not transfer cleanly</h2>
+        <p>Well-maintained general benchmarks like TabArena and TALENT have made tabular evaluations far more consistent, yet their conclusions rest mostly on conventional tables with many more rows than columns. When you move into biomedical assays, three things break down.</p>
+        <ul>
+          <li><strong>Feature counts outgrow model defaults.</strong> Several tabular foundation models (TFMs) were pretrained or configured for at most 500 to 2,500 columns. When a dataset has 20,000 genes or 450,000 CpG probes, default recipes either subsample aggressively or run out of memory.</li>
+          <li><strong>Sample counts stay small, but not uniformly small.</strong> One study has 60 labelled biopsies; another has 1,200 chemical compounds or 650 methylation arrays. A model that shines with 50 training rows may fall behind when 500 rows are available, and vice versa.</li>
+          <li><strong>Biological representations behave differently.</strong> Bulk RNA-seq, 16S or shotgun metagenomics, ECFP4 molecular fingerprints, SNP panels for crop genomic prediction, and mean-pooled protein or DNA language-model embeddings have very different sparsity, noise, and correlation structures. Unlike Raman spectra, omics tables also lack a physical ordering across columns.</li>
+        </ul>
+
+        <h2>A 4 × 7 grid of operating points</h2>
+        <p>TabBench-Bio varies feature width and training-row count independently across 28 cells:</p>
+        <ul>
+          <li><strong>Feature caps (<code>p</code>):</strong> <code>2,000</code>, <code>10,000</code>, <code>25,000</code>, and <code>full</code> (all eligible columns). Within each fold, columns are placed in a seeded random order so smaller caps are exact prefixes of larger ones.</li>
+          <li><strong>Training-sample budgets (<code>n</code>):</strong> <code>20</code>, <code>50</code>, <code>100</code>, <code>200</code>, <code>500</code>, <code>1,000</code>, and <code>full</code> (all available training samples in the fold). Held-out test folds remain fixed across every budget.</li>
+        </ul>
+        <p>Every model runs on the same frozen five-fold cross-validation splits. Where the underlying study has biological groups—Bemis-Murcko scaffolds in ChEMBL bioactivity, homology partitions in DeepLoc 2.0, mutation positions in PEER TEM-1, or genomic loci in BRCA1—splits respect those groups so related sequences or scaffolds do not leak across train and test.</p>
+
+        <p>Each fit and prediction step gets a strict one-hour timeout on an NVIDIA L40S (48 GB VRAM, 16 CPU cores, 80 GB RAM). When GPU memory runs out during inference, query batches are halved down to a single sample if needed. In the primary <em>Strict</em> analysis, any run that still runs out of memory or hits the timeout is scored as the Constant baseline rather than dropped. Reliability is part of the ranking: an accurate model that crashes on half the wide tables does not get a free pass.</p>
+
+        <h2>What changes when you vary <code>p</code> and <code>n</code></h2>
+        <p>If rankings stayed constant across operating points, a 28-cell grid would be wasted compute. In the paper's 43-dataset analysis, the opposite happened: <strong>six different models finished first in at least one cell</strong>, and the median Spearman rank correlation across all 378 pairs of grid cells was only <strong>0.54</strong> (dipping as low as <strong>−0.47</strong> between distant corners of the grid).</p>
+
+        <p>Sample size alone produces dramatic rank reversals. Holding the feature cap at 10,000 and increasing training rows from 20 to 1,000 drops L2-regularised Logistic Regression from shared 1st place to 16th. To rule out changing dataset pools (since smaller datasets drop out at <code>n = 500</code> or <code>1,000</code>), the paper repeated the calculation on the 14 datasets large enough to appear at every sample budget. The pattern held: Logistic Regression still fell from 4th to 16th, while the neural ensemble TabM climbed from 15th to 4th.</p>
+
+        <p>Feature width shifts rankings too. On 34 shared targets at <code>n = 100</code>, raising the feature cap from 2,000 to 10,000 moved Logistic Regression from 7th to 4th and TabICL v2 from 17th to 19th. RealTabPFN 2.5 and TabICL v2 share the same 2,000-feature regular limit, yet RealTabPFN 2.5 held first place in both cells. Knowing a model's nominal column cap does not tell you how gracefully it handles wider inputs.</p>
+
+        <h2>How to read the rankings</h2>
+        <p>Because the benchmark mixes classification (scored primarily by Macro-F1) and regression (RMSE), raw metrics cannot be averaged directly. Instead, TabBench-Bio fits a Bradley–Terry Elo model to pairwise fold outcomes within each target and anchors Random Forest at 1,000, with 2,000 target-bootstrap resamples for 95% intervals.</p>
+
+        <p>At the paper's predeclared reference cell (<code>p = 10,000, n = 100</code>, 42 targets), RealTabPFN 2.5 led with Elo 1,156 (95% CI 1,098–1,212), ahead of TabPFN 3 (1,070) and Logistic Regression (1,063). Yet Logistic Regression actually recorded a higher mean Macro-F1 (0.721 vs. 0.713) in 33.1 seconds median fit time instead of 78.9 seconds. Switch the classification metric to AUROC and Logistic Regression drops behind the top six TFMs, showing how strongly threshold calibration and metric choice affect conclusions. Across modalities, Random Forest and Extra Trees still led the four SNP genomic-prediction regression tasks, while TabFM led sequence-derived embeddings and TabPFN Wide (8k) led DNA methylation.</p>
+
+        <h2>Using the benchmark for your own data</h2>
+        <p>There is no universal winner on biomedical tables. Before picking a model—or claiming a new method beats the state of the art—match your check to the regime you care about:</p>
+        <ul>
+          <li>Check the <a href="/index.html#explore">interactive leaderboard</a> at the feature cap, sample count, and modality closest to your cohort, and look at the 95% bootstrap intervals rather than point ranks alone.</li>
+          <li>Inspect each method's <a href="/models/">model card</a> to see its failure rate across wide or small-sample cells, plus whether any pretraining data overlaps benchmark tasks (such as TabDPT on GEMLeR/expO gene-expression sets).</li>
+          <li>Want to test a new estimator? Implement <code>create_model(task)</code> and run <code>tabbench-bio evaluate --model my_model.py</code> to fit only your pipeline on the same frozen folds and compare it against the published results.</li>
+        </ul>
+
+        <nav class="blog-post-nav" aria-label="Blog navigation">
+          <a href="/blog/">← All posts</a>
+          <a href="/blog/model-timeline/">Next: How TabBench-Bio Evolved →</a>
+        </nav>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <div class="footer-identity"><a class="university-logo" href="https://uni-tuebingen.de/" target="_blank"
+          rel="noreferrer" aria-label="University of Tübingen"><img src="/assets/university-of-tuebingen.svg"
+            alt="University of Tübingen" loading="lazy" decoding="async"></a>
+        <div class="footer-copy"><strong>TabBench-Bio</strong><a
+            href="https://uni-tuebingen.de/fakultaeten/mathematisch-naturwissenschaftliche-fakultaet/fachbereiche/informatik/lehrstuehle/methods-in-medical-informatics/"
+            target="_blank" rel="noreferrer">Methods in Medical Informatics, University of Tübingen <span
+              aria-hidden="true">↗</span></a><span>Maintained by Jules Kreuer</span></div>
+      </div>
+      <div class="footer-links"><a href="/citation.html">Citation</a><a href="/imprint.html">Imprint &amp; Privacy</a></div>
+    </div>
+  </footer>
+  <div id="load-error" class="load-error" hidden></div>
+  <script src="/js/analytics.js?v=20260908-optout"></script>
+  <script src="/js/app.js?v=20261124-blog"></script>
+</body>
+
+</html>
