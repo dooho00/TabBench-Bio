@@ -242,14 +242,17 @@ def write_sitemaps(site_dir: Path, project_url: str, last_modified: str) -> None
 
 
 def write_home_summary(site_dir: Path, dashboard: dict) -> None:
-    """Render the default Strict podium and counts before browser scripts run."""
+    """Render the reference leaderboard, podium, and counts before browser scripts run."""
     models = dashboard["models"]
-    excluded = set(dashboard["meta"]["plot_excluded_models"]) | {"AUTOGLUON"}
+    meta = dashboard["meta"]
+    strict = dashboard["analysis_views"]["strict"]
+    excluded = set(meta["plot_excluded_models"])
     leaders = sorted(
         (
             row
-            for row in dashboard["analysis_views"]["strict"]["reference"]
+            for row in strict["reference"]
             if row["model_id"] not in excluded
+            and row["model_id"] != "AUTOGLUON"
             and not models[row["model_id"]]["training_data_overlap"]
         ),
         key=lambda row: row["Elo"],
@@ -277,9 +280,35 @@ def write_home_summary(site_dir: Path, dashboard: dict) -> None:
             else "rankings can change with the data budget."
         )
         note = escape(f"Top-rated at the reference setting ({setting}); {suffix}")
+
+    reference_label = next(
+        cell["label"] for cell in strict["cell_options"] if cell["id"] == meta["reference_cell"]
+    )
+    reference_rows = sorted(
+        (row for row in strict["reference"] if row["model_id"] not in excluded),
+        key=lambda row: (-row["Elo"], row["model_id"]),
+    )
+    leaderboard_rows = []
+    for row in reference_rows:
+        identifier = row["model_id"]
+        label = escape_html(model_label(models[identifier]))
+        leaderboard_rows.append(
+            f'<tr><td><a href="{detail_url("model", identifier)}">{label}</a></td>'
+            f"<td>{row['Elo']:,}</td><td>{row['Elo_lo']:,}–{row['Elo_hi']:,}</td>"
+            f"<td>{row['n_targets']:,}</td></tr>"
+        )
+    leaderboard_caption = escape_html(
+        f"Strict Macro-F1 Elo across all dataset modalities · {reference_label}"
+    )
     replacements = {
         "podium-list": ("ol", "".join(items)),
         "podium-note": ("p", note),
+        "elo-reference-caption": ("caption", leaderboard_caption),
+        "elo-reference-rows": (
+            "tbody",
+            "\n".join(leaderboard_rows)
+            or '<tr><td colspan="4">No ranking is available for the reference setting yet.</td></tr>',
+        ),
         "dataset-count": ("strong", f"{len(dashboard['datasets']):,}"),
         "model-count": ("strong", f"{dashboard['meta']['configured_model_count']:,}"),
         "evaluation-points-per-model": (

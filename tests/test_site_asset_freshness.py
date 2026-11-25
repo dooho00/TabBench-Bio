@@ -284,6 +284,29 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
         f'<strong id="model-count">{payload["meta"]["configured_model_count"]:,}</strong>' in home
     )
     assert "podium-place-1" in home
+    assert '<div id="elo-reference-table" class="table-wrap">' in home
+    assert "Strict Macro-F1 Elo across all dataset modalities" in home
+    table_rows = re.search(r'<tbody id="elo-reference-rows">(.*?)</tbody>', home, re.S)[1]
+    reference_rows = sorted(
+        (
+            row
+            for row in charts["domain_elo"]
+            if row["cell"] == parsed["meta"]["reference_cell"]
+            and row["domain"] == "all"
+            and row["metric"] == "f1_macro"
+            and row["model_id"] not in parsed["meta"]["plot_excluded_models"]
+        ),
+        key=lambda row: (-row["Elo"], row["model_id"]),
+    )
+    assert reference_rows
+    assert re.findall(r'<td><a href="/models/([^/]+)/">[^<]+</a></td>', table_rows) == [
+        row["model_id"].lower() for row in reference_rows
+    ]
+    for row in reference_rows:
+        assert (
+            f"<td>{row['Elo']:,}</td><td>{row['Elo_lo']:,}–{row['Elo_hi']:,}</td>"
+            f"<td>{row['n_targets']:,}</td>" in table_rows
+        )
     metadata = json.loads(
         re.search(r'<script type="application/ld\+json">(.*?)</script>', home, re.S)[1]
     )

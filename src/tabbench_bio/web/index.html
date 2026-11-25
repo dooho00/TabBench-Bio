@@ -71,9 +71,9 @@
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Regular.woff2" as="font" type="font/woff2"
     crossorigin>
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.min.css?v=20261124-blog7">
+  <link rel="stylesheet" href="style.min.css?v=20261125-elo-table">
   <script defer src="js/analytics.js?v=20260908-optout"></script>
-  <script defer src="js/app.js?v=20261124-blog"></script>
+  <script defer src="js/app.js?v=20261125-elo-table"></script>
 </head>
 
 <body data-page="home">
@@ -194,7 +194,16 @@
           </div>
         </div>
         <div id="elo-content" class="panel-chart-content">
-          <div id="elo-chart" class="plot" role="region" aria-label="Interactive Elo leaderboard"></div>
+          <div id="elo-reference-table" class="table-wrap">
+            <table>
+              <caption id="elo-reference-caption"></caption>
+              <thead>
+                <tr><th scope="col">Model</th><th scope="col">Elo</th><th scope="col">95% interval</th><th scope="col">Targets</th></tr>
+              </thead>
+              <tbody id="elo-reference-rows"></tbody>
+            </table>
+          </div>
+          <div id="elo-chart" class="plot" role="region" aria-label="Interactive Elo leaderboard" tabindex="-1"></div>
           <p id="elo-metric-note" class="metric-note" hidden>Classification hyperparameter tuning was optimized for
             Macro-F1. Alternative metrics re-rank the same fitted models.</p>
           <div class="chart-foot">

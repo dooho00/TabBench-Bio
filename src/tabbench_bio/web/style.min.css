@@ -613,6 +613,8 @@ mask-image: linear-gradient(to right, transparent 30%, #000 75%);
 .legend i.legend-tuning-change { width: 12px; height: 10px; border: 1px solid var(--muted); background: radial-gradient(var(--ink) 1px, transparent 1px) 0 0 / 4px 4px; }
 .legend i.legend-tuned-elo { width: 7px; height: 7px; margin-inline: 2px; border-radius: 0; background: var(--ink); transform: rotate(45deg); }
 #elo-chart + .metric-note { margin-top: 6px; }
+#elo-chart:not(.is-ready) { height: 0; min-height: 0; overflow: hidden; visibility: hidden; }
+#elo-reference-caption { padding: 8px 15px; text-align: left; color: var(--muted); }
 #family-legend { flex: 1 1 100%; }
 .chart-foot:has(#family-legend) { flex-wrap: wrap; align-items: flex-start; gap: 12px; }
 .chart-foot:has(#family-legend) > p { flex: 1 1 100%; }

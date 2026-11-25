@@ -858,6 +858,7 @@ function renderElo() {
     Plotly.purge(chart);
     chart.innerHTML = `<p style="margin:0;padding:96px 24px;color:var(--muted);text-align:center">No ${escapeHtml(domainDescription(domain).toLowerCase())} results are available for ${escapeHtml(option.label)}.</p>`;
     byId("elo-note").textContent = `${ELO_METRICS[metric]} · ${option.label} · ${domainDescription(domain)} · no ranking available.`;
+    chart.classList.add("is-ready");
     return;
   }
   const spec = eloPlotSpec(rows, mobile, option.feature_cap);
@@ -870,6 +871,12 @@ function renderElo() {
       const modelId = point.data.ids?.[point.pointNumber];
       if (modelId && DATA.models[modelId]) location.href = detailPageUrl("model", modelId);
     });
+    chart.classList.add("is-ready");
+    const referenceTable = byId("elo-reference-table");
+    if (referenceTable && !referenceTable.hidden) {
+      if (referenceTable.contains(document.activeElement)) chart.focus({ preventScroll: true });
+      referenceTable.hidden = true;
+    }
   });
   const referenceNote = spec.autogluon ? " · solid line: AutoGluon 1 h reference" : "";
   const hiddenNote = spec.hiddenNegativeCount
