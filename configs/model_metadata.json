@@ -237,6 +237,21 @@
     "description": "Causilo, by Nums AI, is pretrained on synthetic tables and uses labelled examples as context for classification or regression. It processes relationships across rows and columns, combining information about individual features with patterns shared by samples."
   },
   {
+    "key": "CAUSILO-1.5",
+    "display": "Causilo 1.5",
+    "category": "Tabular Foundation",
+    "max_features": null,
+    "supported_tasks": [
+      "classification",
+      "regression"
+    ],
+    "max_classes": null,
+    "hidden": false,
+    "training_data_overlap": false,
+    "source_url": "https://huggingface.co/nums-ai/causilo-1.5",
+    "description": "Causilo 1.5 uses labelled training rows to make classification and regression predictions. The benchmark uses the standard eight-estimator version with all rows and features provided by each grid cell."
+  },
+  {
     "key": "LIGHTPFN",
     "display": "LightPFN 1.5.1",
     "category": "Tabular Foundation",

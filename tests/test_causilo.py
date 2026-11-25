@@ -6,14 +6,13 @@ import pytest
 
 pytest.importorskip("torch")
 pytest.importorskip("autogluon.tabular")
-pytest.importorskip("causilo")
+pytest.importorskip("causilo.checkpoints")
 
 import torch
 from causilo import checkpoints
 from causilo.model import Model, ModelConfig
 
 from tabbench_bio.model import _resolve_hyperparameters
-from tabbench_bio.models import causilo
 from tabbench_bio.models.causilo import CausiloModel
 
 
@@ -105,7 +104,7 @@ def test_explicit_gpu_never_falls_back_to_cpu(monkeypatch):
 
 
 def test_wrong_checkpoint_revision_fails_before_fitting(monkeypatch):
-    monkeypatch.setattr(causilo, "RELEASE_COMMIT", "wrong-revision")
+    monkeypatch.setattr(checkpoints, "RELEASE_COMMIT", "wrong-revision")
     with pytest.raises(AssertionError, match="checkpoint revision"):
         CausiloModel()._fit(None, None)
 
