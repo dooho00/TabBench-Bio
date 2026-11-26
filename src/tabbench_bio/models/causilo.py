@@ -65,5 +65,8 @@ class Causilo15Model(CausiloModel):
     ag_key = "CAUSILO-1.5"
     ag_name = "Causilo15"
 
+    def _more_tags(self):
+        return {"can_refit_full": True}
+
     def _estimator_options(self):
         return {"model_version": "1.5", "max_context": None}

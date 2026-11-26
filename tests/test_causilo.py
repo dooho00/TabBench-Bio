@@ -11,9 +11,12 @@ pytest.importorskip("causilo.checkpoints")
 import torch
 from causilo import checkpoints
 from causilo.model import Model, ModelConfig
+from sklearn.dummy import DummyClassifier
 
-from tabbench_bio.model import _resolve_hyperparameters
-from tabbench_bio.models.causilo import CausiloModel
+from tabbench_bio.dataset import TaskType
+from tabbench_bio.model import AutoGluonModel, _resolve_hyperparameters
+from tabbench_bio.models import causilo
+from tabbench_bio.models.causilo import Causilo15Model, CausiloModel
 
 
 def _test_weights(task):
@@ -111,3 +114,30 @@ def test_wrong_checkpoint_revision_fails_before_fitting(monkeypatch):
 
 def test_registry_resolves_adapter():
     assert _resolve_hyperparameters(["CAUSILO"], 1) == {CausiloModel: [{"ag.num_gpus": 1}]}
+
+
+def test_causilo_15_refits_on_all_training_rows(tmp_path, monkeypatch):
+    monkeypatch.setenv("TABBENCH_MODEL_CPUS", "1")
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 0)
+    monkeypatch.setattr(causilo, "CausiloClassifier", lambda **kwargs: DummyClassifier())
+    original_fit = Causilo15Model._fit
+    fit_rows = []
+
+    def record_fit(self, X, y, **kwargs):
+        fit_rows.append(set(X.index))
+        return original_fit(self, X, y, **kwargs)
+
+    monkeypatch.setattr(Causilo15Model, "_fit", record_fit)
+    train = pd.DataFrame({"feature": np.arange(100), "target": np.arange(100) % 2})
+    model = AutoGluonModel(
+        ["CAUSILO-1.5"],
+        ensemble=False,
+        optimize=False,
+        task_type=TaskType.Classification,
+        autogluon_presets="medium_quality",
+        autogluon_path=str(tmp_path),
+    )
+    model.fit(train)
+    holdout_fit, full_fit = fit_rows
+    assert holdout_fit < full_fit
+    assert full_fit == set(train.index)
